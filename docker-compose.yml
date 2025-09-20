@@ -11,7 +11,7 @@
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: "http://0.0.0.0:3000"
-      DefaultConnection__ConnectionStrings: Host=db; Port=5432; Database = BookDB; Trust Server Certificate = true; Username=danny; Password=${DB_PASS}
+      ConnectionStrings__DefaultConnection: Host=db; Port=5432; Database = BookDB; Trust Server Certificate = true; Username=danny; Password=${DB_PASS}
   
   db:
     image: postgres:latest
