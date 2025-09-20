@@ -1,0 +1,10 @@
+.terraform
+*.auto.tfvars
+*.backup
+*.tfstate
+*.tfstate.*
+bin/
+obj/
+.idea/
+.vaultpassword
+.vscode
