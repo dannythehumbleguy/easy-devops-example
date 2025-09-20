@@ -5,6 +5,6 @@ services:
     ports:
       - "80:80"
     volumes:
-      - ./letsencrypt:/etc/letsencrypt
+      - /etc/letsencrypt:/etc/letsencrypt
       - ./logs:/var/log/letsencrypt
     command: certonly --standalone --email ${EMAIL} --agree-tos --no-eff-email -d ${DOMAIN}
