@@ -7,7 +7,9 @@
     depends_on:
       - db
     ports:
-      - "80:3000"
+      - "3000:3000"
+    networks:
+      - book-api-network
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: "http://0.0.0.0:3000"
@@ -15,7 +17,27 @@
   
   db:
     image: postgres:latest
+    networks:
+      - book-api-network
     environment:
       POSTGRES_USER: "danny"
       POSTGRES_PASSWORD: ${DB_PASS}
       POSTGRES_DB: "BookDB"
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx-proxy.conf:/etc/nginx/nginx.conf:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+    networks:
+      - book-api-network
+    depends_on:
+      - db
+      - book-api
+
+networks:
+  book-api-network:
+    driver: bridge
