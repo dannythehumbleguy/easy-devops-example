@@ -8,3 +8,4 @@ obj/
 .idea/
 .vaultpassword
 .vscode
+.env
