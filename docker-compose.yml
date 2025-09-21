@@ -5,7 +5,8 @@
       context: ./src
       dockerfile: Dockerfile
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     ports:
       - "80:3000"
     environment:
@@ -15,6 +16,11 @@
   
   db:
     image: postgres:latest
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     environment:
       POSTGRES_USER: "danny"
       POSTGRES_PASSWORD: ${DB_PASS}
