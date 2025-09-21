@@ -21,6 +21,8 @@
       interval: 10s
       timeout: 5s
       retries: 5
+    volumes:
+      - /srv/postgres/data:/var/lib/postgresql/data
     environment:
       POSTGRES_USER: "danny"
       POSTGRES_PASSWORD: ${DB_PASS}
