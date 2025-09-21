@@ -5,7 +5,8 @@
       context: ./src
       dockerfile: Dockerfile
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     ports:
       - "3000:3000"
     networks:
@@ -17,6 +18,13 @@
   
   db:
     image: postgres:latest
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - /srv/postgres/data:/var/lib/postgresql/data
     networks:
       - book-api-network
     environment:
