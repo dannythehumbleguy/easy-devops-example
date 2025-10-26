@@ -9,3 +9,10 @@ obj/
 .vaultpassword
 .vscode
 .env
+
+# Ansible
+ansible/vault_pass.txt
+ansible/.vault-pass
+ansible/roles/
+.ansible/
+*.retry

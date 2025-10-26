@@ -1,0 +1,83 @@
+---
+- name: Deploy BookAPI Application
+  hosts: all
+  app_dir: "/opt/book-api"
+
+  pre_tasks:
+  - name: Update and upgrade apt packages
+    ansible.builtin.apt:
+      update_cache: true
+      cache_valid_time: 86400
+    
+  tasks:
+    - name: Install Docker
+      include_role:
+        name: geerlingguy.docker
+      vars:
+        docker_users:
+          - "{{ ansible_user }}"
+    
+    - name: Ensure application directory exists
+      file:
+        path: "{{ app_dir }}"
+        state: directory
+        owner: "{{ ansible_user }}"
+        mode: '0755'
+    
+    - name: Ensure nginx directory exists
+      file:
+        path: "{{ app_dir }}/nginx"
+        state: directory
+        owner: "{{ ansible_user }}"
+        mode: '0755'
+    
+    - name: Ensure postgres data directory exists
+      file:
+        path: /srv/postgres/data
+        state: directory
+        owner: "{{ ansible_user }}"
+        mode: '0755'
+    
+    - name: Copy docker-compose.yml
+      copy:
+        src: ../docker-compose.yml
+        dest: "{{ app_dir }}/docker-compose.yml"
+        owner: "{{ ansible_user }}"
+        mode: '0644'
+    
+    - name: Copy nginx configuration
+      copy:
+        src: ../nginx/nginx-proxy.conf
+        dest: "{{ app_dir }}/nginx/nginx-proxy.conf"
+        owner: "{{ ansible_user }}"
+        mode: '0644'
+    
+    - name: Copy source code for build
+      copy:
+        src: ../src
+        dest: "{{ app_dir }}/src"
+        owner: "{{ ansible_user }}"
+        mode: '0755'
+
+    - name: Build and deploy containers
+      community.docker.docker_compose_v2:
+        project_src: "{{ app_dir }}"
+        build: true
+        pull: always
+        state: present
+      environment:
+        DB_PASS: "{{ db_password }}"
+      register: compose_result
+    
+    - name: Get container status
+      command: docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+      register: container_status
+      changed_when: false
+    
+    - name: Display container status
+      debug:
+        msg: "{{ container_status.stdout_lines }}"
+    
+    - name: Display compose result
+      debug:
+        var: compose_result
