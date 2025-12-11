@@ -1,83 +1,121 @@
 ---
-- name: Deploy BookAPI Application
+- name: Deploy BookAPI
   hosts: all
-  app_dir: "/opt/book-api"
+  vars:
+    app_dir: /opt/book-api
 
   pre_tasks:
-  - name: Update and upgrade apt packages
-    ansible.builtin.apt:
-      update_cache: true
-      cache_valid_time: 86400
-    
-  tasks:
+    - name: Update apt cache
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 3600
+
     - name: Install Docker
-      include_role:
+      ansible.builtin.include_role:
         name: geerlingguy.docker
       vars:
-        docker_users:
-          - "{{ ansible_user }}"
-    
-    - name: Ensure application directory exists
-      file:
-        path: "{{ app_dir }}"
-        state: directory
-        owner: "{{ ansible_user }}"
-        mode: '0755'
-    
-    - name: Ensure nginx directory exists
-      file:
-        path: "{{ app_dir }}/nginx"
-        state: directory
-        owner: "{{ ansible_user }}"
-        mode: '0755'
-    
-    - name: Ensure postgres data directory exists
-      file:
+        docker_users: ["{{ ansible_user }}"]
+
+  tasks:
+    # Database
+    - name: Create postgres data directory
+      ansible.builtin.file:
         path: /srv/postgres/data
         state: directory
-        owner: "{{ ansible_user }}"
-        mode: '0755'
-    
-    - name: Copy docker-compose.yml
-      copy:
-        src: ../docker-compose.yml
-        dest: "{{ app_dir }}/docker-compose.yml"
-        owner: "{{ ansible_user }}"
-        mode: '0644'
-    
-    - name: Copy nginx configuration
-      copy:
-        src: ../nginx/nginx-proxy.conf
-        dest: "{{ app_dir }}/nginx/nginx-proxy.conf"
-        owner: "{{ ansible_user }}"
-        mode: '0644'
-    
-    - name: Copy source code for build
-      copy:
-        src: ../src
-        dest: "{{ app_dir }}/src"
-        owner: "{{ ansible_user }}"
-        mode: '0755'
+        mode: "0755"
+      tags: [db]
 
-    - name: Build and deploy containers
-      community.docker.docker_compose_v2:
-        project_src: "{{ app_dir }}"
-        build: true
-        pull: always
+    - name: Run PostgreSQL
+      community.docker.docker_container:
+        name: postgres
+        image: postgres:latest
+        state: started
+        restart_policy: unless-stopped
+        ports:
+          - "{{ db_port }}:5432"
+        volumes:
+          - /srv/postgres/data:/var/lib/postgresql/data
+        env:
+          POSTGRES_USER: "{{ db_user }}"
+          POSTGRES_PASSWORD: "{{ db_password }}"
+          POSTGRES_DB: "{{ db_name }}"
+      tags: [db]
+
+    # API
+    - name: Create app directory
+      ansible.builtin.file:
+        path: "{{ app_dir }}/src"
+        state: directory
+        mode: "0755"
+      tags: [api]
+
+    - name: Copy source code
+      ansible.builtin.copy:
+        src: ../src/
+        dest: "{{ app_dir }}/src/"
+        mode: "0755"
+      tags: [api]
+
+    - name: Build API image
+      community.docker.docker_image:
+        name: book-api
+        source: build
+        build:
+          path: "{{ app_dir }}/src"
         state: present
-      environment:
-        DB_PASS: "{{ db_password }}"
-      register: compose_result
-    
-    - name: Get container status
-      command: docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
-      register: container_status
-      changed_when: false
-    
-    - name: Display container status
-      debug:
-        msg: "{{ container_status.stdout_lines }}"
-    
-    - name: Display compose result
-      debug:
-        var: compose_result
+        force_source: true
+      tags: [api]
+
+    - name: Run API container
+      community.docker.docker_container:
+        name: book-api
+        image: book-api
+        state: started
+        restart_policy: unless-stopped
+        ports:
+          - "{{ api_port }}:3000"
+        env:
+          ASPNETCORE_ENVIRONMENT: Production
+          ASPNETCORE_URLS: "http://0.0.0.0:3000"
+          ConnectionStrings__DefaultConnection: "Host={{ db_host }}; Port={{ db_port }}; Database={{ db_name }}; Username={{ db_user }}; Password={{ db_password }}"
+      tags: [api]
+
+    # Nginx
+    - name: Install Certbot
+      ansible.builtin.include_role:
+        name: geerlingguy.certbot
+      vars:
+        certbot_install_method: snap
+        certbot_auto_renew: true
+        certbot_create_if_missing: true
+        certbot_certs:
+          - domains: ["{{ domain }}"]
+      tags: [proxy]
+
+    - name: Create nginx directory
+      ansible.builtin.file:
+        path: "{{ app_dir }}/nginx"
+        state: directory
+        mode: "0755"
+      tags: [proxy]
+
+    - name: Generate nginx config
+      ansible.builtin.template:
+        src: templates/nginx.conf.j2
+        dest: "{{ app_dir }}/nginx/nginx.conf"
+        mode: "0644"
+      tags: [proxy]
+
+    - name: Run Nginx
+      community.docker.docker_container:
+        name: nginx
+        image: nginx:alpine
+        state: started
+        restart_policy: unless-stopped
+        ports:
+          - "80:80"
+          - "443:443"
+        volumes:
+          - "{{ app_dir }}/nginx/nginx.conf:/etc/nginx/nginx.conf:ro"
+          - /etc/letsencrypt:/etc/letsencrypt:ro
+      tags: [proxy]

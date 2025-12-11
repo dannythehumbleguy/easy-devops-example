@@ -9,17 +9,23 @@ http {
     default_type application/octet-stream;
     sendfile on;
     keepalive_timeout 65;
-    
-    # HTTPS для API
+
+    server {
+        listen 80;
+        server_name {{ domain }};
+        return 301 https://$host$request_uri;
+    }
+
     server {
         listen 443 ssl http2;
-        server_name voicenotes.space;
-    
-        ssl_certificate /etc/letsencrypt/live/voicenotes.space/fullchain.pem;
-        ssl_certificate_key /etc/letsencrypt/live/voicenotes.space/privkey.pem;
-    
+        server_name {{ domain }};
+
+        ssl_certificate /etc/letsencrypt/live/{{ domain }}/fullchain.pem;
+        ssl_certificate_key /etc/letsencrypt/live/{{ domain }}/privkey.pem;
+        ssl_protocols TLSv1.2 TLSv1.3;
+
         location / {
-            proxy_pass http://book-api:3000;
+            proxy_pass http://{{ api_host }}:{{ api_port }};
             proxy_set_header Host $host;
             proxy_set_header X-Forwarded-Proto $scheme;
             proxy_set_header X-Real-IP $remote_addr;

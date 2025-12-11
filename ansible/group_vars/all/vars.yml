@@ -1,0 +1,27 @@
+---
+# Domain
+domain: voicenotes.space
+certbot_email: your-email@example.com
+
+# Service addresses (configure based on your infrastructure)
+db_host: db1  # hostname or IP of database server
+db_port: 5432
+db_name: BookDB
+db_user: danny
+
+api_host: api1  # hostname or IP of API server
+api_port: 3000
+
+# Docker
+docker_users:
+  - "{{ ansible_user }}"
+
+# Certbot
+certbot_install_method: snap
+certbot_auto_renew: true
+certbot_auto_renew_hour: "3"
+certbot_auto_renew_minute: "30"
+certbot_create_if_missing: true
+certbot_certs:
+  - domains:
+      - "{{ domain }}"

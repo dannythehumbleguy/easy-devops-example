@@ -1,48 +1,42 @@
-﻿- hosts: all
+﻿---
+- name: Bootstrap server
+  hosts: webservers
   remote_user: root
-  gather_facts: no
-  
+  gather_facts: false
+
   tasks:
-    - name: Создать пользователя deploy
-      user:
+    - name: Create deploy user
+      ansible.builtin.user:
         name: deploy
         shell: /bin/bash
-        groups: sudo,docker
-        append: yes
-        create_home: yes
-        state: present
+        groups: sudo
+        append: true
+        create_home: true
 
-    - name: Добавить SSH ключ
-      authorized_key:
+    - name: Add SSH key for deploy user
+      ansible.posix.authorized_key:
         user: deploy
         key: "{{ lookup('file', '~/.ssh/deploy.pub') }}"
-        state: present
 
-    - name: Настроить sudo без пароля
-      copy:
-        content: 'deploy ALL=(ALL) NOPASSWD: ALL'
+    - name: Allow passwordless sudo
+      ansible.builtin.copy:
+        content: "deploy ALL=(ALL) NOPASSWD: ALL"
         dest: /etc/sudoers.d/deploy
-        mode: '0440'
-        validate: 'visudo -cf %s'
+        mode: "0440"
+        validate: "visudo -cf %s"
 
-    - name: Отключить root login через SSH
-      lineinfile:
+    - name: Harden SSH
+      ansible.builtin.lineinfile:
         path: /etc/ssh/sshd_config
-        regexp: '^PermitRootLogin'
-        line: 'PermitRootLogin no'
-        state: present
-      notify: restart sshd
+        regexp: "{{ item.regexp }}"
+        line: "{{ item.line }}"
+      loop:
+        - { regexp: "^PermitRootLogin", line: "PermitRootLogin no" }
+        - { regexp: "^PasswordAuthentication", line: "PasswordAuthentication no" }
+      notify: Restart sshd
 
-    - name: Отключить password authentication
-      lineinfile:
-        path: /etc/ssh/sshd_config
-        regexp: '^PasswordAuthentication'
-        line: 'PasswordAuthentication no'
-        state: present
-      notify: restart sshd
-  
   handlers:
-    - name: restart sshd
-      service:
+    - name: Restart sshd
+      ansible.builtin.service:
         name: sshd
         state: restarted
