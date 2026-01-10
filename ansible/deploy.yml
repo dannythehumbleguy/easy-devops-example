@@ -84,17 +84,26 @@
       tags: [api]
 
     # Nginx
-    - name: Install Certbot
+    - name: Stop nginx before certbot
+      community.docker.docker_container:
+        name: nginx
+        state: stopped
+      ignore_errors: true
+      tags: [proxy]
+
+    - name: Debug certbot vars
+      ansible.builtin.debug:
+        msg: |
+          certbot_create_if_missing: {{ certbot_create_if_missing }}
+          certbot_create_method: {{ certbot_create_method }}
+          certbot_certs: {{ certbot_certs }}
+      tags: [proxy]
+
+    - name: Install Certbot and generate certificate
       ansible.builtin.include_role:
         name: geerlingguy.certbot
-      vars:
-        certbot_install_method: snap
-        certbot_auto_renew: true
-        certbot_create_if_missing: true
-        certbot_admin_email: "{{ certbot_email }}"
-        certbot_certs:
-          - email: "{{ certbot_email }}"
-            domains: ["{{ domain }}"]
+        apply:
+          tags: [proxy]
       tags: [proxy]
 
     - name: Create nginx directory
@@ -120,6 +129,8 @@
         ports:
           - "80:80"
           - "443:443"
+        etc_hosts:
+          host.docker.internal: host-gateway
         volumes:
           - "{{ app_dir }}/nginx/nginx.conf:/etc/nginx/nginx.conf:ro"
           - /etc/letsencrypt:/etc/letsencrypt:ro
