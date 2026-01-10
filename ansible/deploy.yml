@@ -1,6 +1,7 @@
 ---
 - name: Deploy BookAPI
   hosts: all
+  become: true
   vars:
     app_dir: /opt/book-api
 
@@ -28,7 +29,7 @@
     - name: Run PostgreSQL
       community.docker.docker_container:
         name: postgres
-        image: postgres:latest
+        image: postgres:17
         state: started
         restart_policy: unless-stopped
         ports:
@@ -74,6 +75,8 @@
         restart_policy: unless-stopped
         ports:
           - "{{ api_port }}:3000"
+        etc_hosts:
+          host.docker.internal: host-gateway
         env:
           ASPNETCORE_ENVIRONMENT: Production
           ASPNETCORE_URLS: "http://0.0.0.0:3000"
@@ -88,8 +91,10 @@
         certbot_install_method: snap
         certbot_auto_renew: true
         certbot_create_if_missing: true
+        certbot_admin_email: "{{ certbot_email }}"
         certbot_certs:
-          - domains: ["{{ domain }}"]
+          - email: "{{ certbot_email }}"
+            domains: ["{{ domain }}"]
       tags: [proxy]
 
     - name: Create nginx directory

@@ -1,15 +1,15 @@
 ---
 # Domain
-domain: voicenotes.space
-certbot_email: your-email@example.com
+domain: test.voicenotes.space
+certbot_email: dannygam47@gmail.com
 
-# Service addresses (configure based on your infrastructure)
-db_host: db1  # hostname or IP of database server
+# Service addresses (for containers use host.docker.internal)
+db_host: host.docker.internal
 db_port: 5432
 db_name: BookDB
 db_user: danny
 
-api_host: api1  # hostname or IP of API server
+api_host: host.docker.internal
 api_port: 3000
 
 # Docker
