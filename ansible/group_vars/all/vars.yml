@@ -1,4 +1,7 @@
 ---
+
+app_dir: /opt/book-api
+
 # Domain
 domain: test.voicenotes.space
 certbot_email: dannygam47@gmail.com

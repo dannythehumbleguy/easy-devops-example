@@ -1,9 +1,7 @@
 ---
-- name: Deploy BookAPI
+- name: Common bootstrap (apt + docker)
   hosts: all
   become: true
-  vars:
-    app_dir: /opt/book-api
 
   pre_tasks:
     - name: Update apt cache
@@ -11,20 +9,22 @@
         update_cache: true
         cache_valid_time: 3600
 
-    - name: Install Docker
-      ansible.builtin.include_role:
-        name: geerlingguy.docker
+  roles:
+    - role: geerlingguy.docker
       vars:
         docker_users: ["{{ ansible_user }}"]
 
+# DB
+- name: Deploy Postgres
+  hosts: db
+  become: true
+
   tasks:
-    # Database
     - name: Create postgres data directory
       ansible.builtin.file:
         path: /srv/postgres/data
         state: directory
         mode: "0755"
-      tags: [db]
 
     - name: Run PostgreSQL
       community.docker.docker_container:
@@ -40,22 +40,24 @@
           POSTGRES_USER: "{{ db_user }}"
           POSTGRES_PASSWORD: "{{ db_password }}"
           POSTGRES_DB: "{{ db_name }}"
-      tags: [db]
 
-    # API
+# API
+- name: Deploy API
+  hosts: api
+  become: true
+
+  tasks:
     - name: Create app directory
       ansible.builtin.file:
         path: "{{ app_dir }}/src"
         state: directory
         mode: "0755"
-      tags: [api]
 
     - name: Copy source code
       ansible.builtin.copy:
         src: ../src/
         dest: "{{ app_dir }}/src/"
         mode: "0755"
-      tags: [api]
 
     - name: Build API image
       community.docker.docker_image:
@@ -65,7 +67,6 @@
           path: "{{ app_dir }}/src"
         state: present
         force_source: true
-      tags: [api]
 
     - name: Run API container
       community.docker.docker_container:
@@ -81,44 +82,34 @@
           ASPNETCORE_ENVIRONMENT: Production
           ASPNETCORE_URLS: "http://0.0.0.0:3000"
           ConnectionStrings__DefaultConnection: "Host={{ db_host }}; Port={{ db_port }}; Database={{ db_name }}; Username={{ db_user }}; Password={{ db_password }}"
-      tags: [api]
 
-    # Nginx
+# PROXY
+- name: Deploy Nginx proxy
+  hosts: proxy
+  become: true
+
+  tasks:
     - name: Stop nginx before certbot
       community.docker.docker_container:
         name: nginx
         state: stopped
       ignore_errors: true
-      tags: [proxy]
-
-    - name: Debug certbot vars
-      ansible.builtin.debug:
-        msg: |
-          certbot_create_if_missing: {{ certbot_create_if_missing }}
-          certbot_create_method: {{ certbot_create_method }}
-          certbot_certs: {{ certbot_certs }}
-      tags: [proxy]
 
     - name: Install Certbot and generate certificate
       ansible.builtin.include_role:
         name: geerlingguy.certbot
-        apply:
-          tags: [proxy]
-      tags: [proxy]
 
     - name: Create nginx directory
       ansible.builtin.file:
         path: "{{ app_dir }}/nginx"
         state: directory
         mode: "0755"
-      tags: [proxy]
 
     - name: Generate nginx config
       ansible.builtin.template:
         src: templates/nginx.conf.j2
         dest: "{{ app_dir }}/nginx/nginx.conf"
         mode: "0644"
-      tags: [proxy]
 
     - name: Run Nginx
       community.docker.docker_container:
@@ -134,4 +125,3 @@
         volumes:
           - "{{ app_dir }}/nginx/nginx.conf:/etc/nginx/nginx.conf:ro"
           - /etc/letsencrypt:/etc/letsencrypt:ro
-      tags: [proxy]
